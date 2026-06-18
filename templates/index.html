@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BigQuery Release Pulse - Live Google Cloud Updates</title>
+    <!-- Meta tags for SEO -->
+    <meta name="description" content="An elegant dashboard displaying the latest BigQuery release notes and updates directly from the official Google Cloud feed, featuring filtering, search, and sharing capabilities.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i data-lucide="database"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>BigQuery <span>Release Pulse</span></h1>
+                    <p class="tagline">Official Google Cloud Updates Feed Dashboard</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <div class="update-status" id="updateStatus">
+                    <span class="status-indicator online"></span>
+                    <span class="status-text">Synced</span>
+                </div>
+                <button id="refreshBtn" class="btn btn-primary" title="Fetch fresh release notes">
+                    <i data-lucide="refresh-cw" class="icon-refresh"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="app-content">
+            <!-- Sidebar (Search, Filters, Stats) -->
+            <aside class="app-sidebar">
+                <!-- Search Section -->
+                <div class="sidebar-card search-card">
+                    <h3>Search Notes</h3>
+                    <div class="search-wrapper">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="searchInput" placeholder="Search features, issues, SQL...">
+                    </div>
+                </div>
+
+                <!-- Filter Section -->
+                <div class="sidebar-card filter-card">
+                    <h3>Filter by Category</h3>
+                    <div class="filter-pills">
+                        <button class="filter-pill active" data-filter="all">
+                            <i data-lucide="layers" class="pill-icon"></i>
+                            <span>All Updates</span>
+                        </button>
+                        <button class="filter-pill" data-filter="feature">
+                            <span class="badge badge-feature"></span>
+                            <span>Features</span>
+                        </button>
+                        <button class="filter-pill" data-filter="announcement">
+                            <span class="badge badge-announcement"></span>
+                            <span>Announcements</span>
+                        </button>
+                        <button class="filter-pill" data-filter="issue">
+                            <span class="badge badge-issue"></span>
+                            <span>Issues</span>
+                        </button>
+                        <button class="filter-pill" data-filter="deprecation">
+                            <span class="badge badge-deprecation"></span>
+                            <span>Deprecations</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Stats Section -->
+                <div class="sidebar-card stats-card">
+                    <h3>Feed Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Notes</span>
+                            <span class="stat-value" id="statTotal">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Features</span>
+                            <span class="stat-value text-feature" id="statFeatures">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Announcements</span>
+                            <span class="stat-value text-announcement" id="statAnnouncements">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Issues/Fixes</span>
+                            <span class="stat-value text-issue" id="statIssues">0</span>
+                        </div>
+                    </div>
+                    <div class="last-sync-time">
+                        Last synced: <span id="lastSyncedText">Never</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Timeline Section -->
+            <main class="timeline-container">
+                <!-- Loader State -->
+                <div id="loader" class="timeline-loader hidden">
+                    <div class="spinner"></div>
+                    <p>Fetching the latest BigQuery release notes...</p>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="timeline-empty hidden">
+                    <i data-lucide="search-code"></i>
+                    <h3>No matching release notes found</h3>
+                    <p>Try refining your search query or choosing a different filter category.</p>
+                </div>
+
+                <!-- Dynamic Timeline Area -->
+                <div id="timeline" class="timeline-feed">
+                    <!-- Cards will be dynamically generated here -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Twitter / X Share Modal (Glassmorphic) -->
+    <div id="shareModal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i data-lucide="twitter" class="x-icon"></i>
+                    <h2>Compose Tweet / Post to X</h2>
+                </div>
+                <button class="modal-close" id="closeModalBtn" title="Close dialog">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-instruction">Edit your update summary below. We have formatted and truncated it to fit the 280-character limit.</p>
+                
+                <div class="tweet-composer-wrapper">
+                    <textarea id="tweetContent" rows="6" maxlength="280" placeholder="What's happening?"></textarea>
+                    <div class="composer-footer">
+                        <span id="charCounter" class="char-counter">0 / 280</span>
+                    </div>
+                </div>
+
+                <div class="tweet-preview-banner">
+                    <div class="preview-label">Preview Meta Info</div>
+                    <div class="preview-item">
+                        <strong>Source:</strong> <span id="previewDate">June 17, 2026</span>
+                    </div>
+                    <div class="preview-item">
+                        <strong>Link:</strong> <span id="previewLink" class="preview-url">https://docs.cloud.google.com/bigquery/docs/release-notes</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelTweetBtn">Cancel</button>
+                <button class="btn btn-tweet" id="postTweetBtn">
+                    <i data-lucide="send"></i>
+                    <span>Share on X</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
