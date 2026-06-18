@@ -10,6 +10,8 @@ const timeline = document.getElementById('timeline');
 const refreshBtn = document.getElementById('refreshBtn');
 const refreshIcon = refreshBtn.querySelector('i');
 const exportCsvBtn = document.getElementById('exportCsvBtn');
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeIcon = document.getElementById('themeIcon');
 const searchInput = document.getElementById('searchInput');
 const updateStatus = document.getElementById('updateStatus');
 const lastSyncedText = document.getElementById('lastSyncedText');
@@ -32,6 +34,7 @@ const previewLink = document.getElementById('previewLink');
 
 // Initialize Lucide Icons
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     lucide.createIcons();
     fetchReleases();
     setupEventListeners();
@@ -43,6 +46,9 @@ function setupEventListeners() {
     refreshBtn.addEventListener('click', () => {
         fetchReleases(true);
     });
+
+    // Theme toggle button
+    themeToggleBtn.addEventListener('click', toggleTheme);
 
     // Export CSV button
     exportCsvBtn.addEventListener('click', exportToCsv);
@@ -525,4 +531,24 @@ async function copyBlockToClipboard(btn, block) {
         console.error('Failed to copy to clipboard:', err);
         alert('Failed to copy text. Please ensure clipboard permissions are enabled.');
     }
+}
+
+// Check and apply saved theme preference on initial load
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        themeIcon.setAttribute('data-lucide', 'moon');
+    } else {
+        document.body.classList.remove('light-theme');
+        themeIcon.setAttribute('data-lucide', 'sun');
+    }
+}
+
+// Toggle page color theme between dark and light modes
+function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    themeIcon.setAttribute('data-lucide', isLight ? 'moon' : 'sun');
+    lucide.createIcons();
 }
