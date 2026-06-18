@@ -9,6 +9,7 @@ const emptyState = document.getElementById('emptyState');
 const timeline = document.getElementById('timeline');
 const refreshBtn = document.getElementById('refreshBtn');
 const refreshIcon = refreshBtn.querySelector('i');
+const exportCsvBtn = document.getElementById('exportCsvBtn');
 const searchInput = document.getElementById('searchInput');
 const updateStatus = document.getElementById('updateStatus');
 const lastSyncedText = document.getElementById('lastSyncedText');
@@ -42,6 +43,9 @@ function setupEventListeners() {
     refreshBtn.addEventListener('click', () => {
         fetchReleases(true);
     });
+
+    // Export CSV button
+    exportCsvBtn.addEventListener('click', exportToCsv);
 
     // Search input (with basic input listener)
     searchInput.addEventListener('input', (e) => {
@@ -240,22 +244,7 @@ function renderTimeline() {
     timeline.innerHTML = '';
     
     // Apply filters
-    let filtered = allReleaseBlocks;
-    
-    if (currentFilter !== 'all') {
-        filtered = filtered.filter(block => block.type === currentFilter);
-    }
-    
-    if (currentSearchQuery) {
-        filtered = filtered.filter(block => {
-            const plainText = getPlainText(block.htmlContent).toLowerCase();
-            const parentTitle = block.parentTitle.toLowerCase();
-            const label = block.label.toLowerCase();
-            return plainText.includes(currentSearchQuery) || 
-                   parentTitle.includes(currentSearchQuery) || 
-                   label.includes(currentSearchQuery);
-        });
-    }
+    const filtered = getFilteredBlocks();
 
     if (filtered.length === 0) {
         emptyState.classList.remove('hidden');
@@ -301,10 +290,16 @@ function renderTimeline() {
             headerRow.className = 'card-header-row';
             headerRow.innerHTML = `
                 <span class="type-pill type-${block.type}">${block.label}</span>
-                <button class="tweet-action-btn" data-id="${block.id}" title="Share this specific update on X/Twitter">
-                    <i data-lucide="twitter"></i>
-                    <span>Tweet This</span>
-                </button>
+                <div class="card-actions">
+                    <button class="card-action-btn copy-action-btn" data-id="${block.id}" title="Copy this update text to clipboard">
+                        <i data-lucide="copy"></i>
+                        <span>Copy</span>
+                    </button>
+                    <button class="card-action-btn tweet-action-btn" data-id="${block.id}" title="Share this specific update on X/Twitter">
+                        <i data-lucide="twitter"></i>
+                        <span>Tweet</span>
+                    </button>
+                </div>
             `;
             releaseBlock.appendChild(headerRow);
             
@@ -339,6 +334,18 @@ function renderTimeline() {
             const targetBlock = allReleaseBlocks.find(b => b.id === blockId);
             if (targetBlock) {
                 openTweetComposer(targetBlock);
+            }
+        });
+    });
+
+    // Setup listener on dynamic Copy buttons
+    const copyButtons = timeline.querySelectorAll('.copy-action-btn');
+    copyButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const blockId = btn.getAttribute('data-id');
+            const targetBlock = allReleaseBlocks.find(b => b.id === blockId);
+            if (targetBlock) {
+                copyBlockToClipboard(btn, targetBlock);
             }
         });
     });
@@ -426,5 +433,96 @@ function updateCharCounter() {
     } else {
         charCounter.className = 'char-counter';
         postTweetBtn.disabled = false;
+    }
+}
+
+// Retrieve currently filtered blocks matching search and category selection
+function getFilteredBlocks() {
+    let filtered = allReleaseBlocks;
+    
+    if (currentFilter !== 'all') {
+        filtered = filtered.filter(block => block.type === currentFilter);
+    }
+    
+    if (currentSearchQuery) {
+        filtered = filtered.filter(block => {
+            const plainText = getPlainText(block.htmlContent).toLowerCase();
+            const parentTitle = block.parentTitle.toLowerCase();
+            const label = block.label.toLowerCase();
+            return plainText.includes(currentSearchQuery) || 
+                   parentTitle.includes(currentSearchQuery) || 
+                   label.includes(currentSearchQuery);
+        });
+    }
+    
+    return filtered;
+}
+
+// Export currently filtered blocks as a downloaded CSV file
+function exportToCsv() {
+    const filtered = getFilteredBlocks();
+    if (filtered.length === 0) {
+        alert("No release notes available to export.");
+        return;
+    }
+    
+    const csvRows = [];
+    
+    // CSV Header row
+    csvRows.push(['Date', 'Category', 'Link', 'Content'].map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+    
+    // CSV Data rows
+    filtered.forEach(block => {
+        const date = block.parentTitle;
+        const category = block.label;
+        const link = block.parentLink;
+        const content = getPlainText(block.htmlContent).trim();
+        
+        const row = [date, category, link, content].map(val => {
+            const escaped = val.replace(/"/g, '""');
+            return `"${escaped}"`;
+        });
+        csvRows.push(row.join(','));
+    });
+    
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `bigquery_releases_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Copy update details to clipboard with interactive checkmark feedback
+async function copyBlockToClipboard(btn, block) {
+    const dateStr = block.parentTitle;
+    const label = block.label;
+    const linkStr = block.parentLink;
+    const updateText = getPlainText(block.htmlContent).replace(/\s+/g, ' ').trim();
+    
+    const formattedText = `BigQuery Release Update (${dateStr}) - ${label}:\n\n${updateText}\n\nRead more: ${linkStr}\n#GoogleCloud #BigQuery`;
+    
+    try {
+        await navigator.clipboard.writeText(formattedText);
+        
+        // Show success state feedback
+        const originalHTML = btn.innerHTML;
+        btn.classList.add('success');
+        btn.innerHTML = `<i data-lucide="check"></i> <span>Copied!</span>`;
+        lucide.createIcons();
+        
+        setTimeout(() => {
+            btn.classList.remove('success');
+            btn.innerHTML = originalHTML;
+            lucide.createIcons();
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy to clipboard:', err);
+        alert('Failed to copy text. Please ensure clipboard permissions are enabled.');
     }
 }
